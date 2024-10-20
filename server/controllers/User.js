@@ -186,6 +186,7 @@ export const getUserDashboard = async (req, res, next) => {
 export const getWorkoutsByDate = async (req, res, next) => {
   try {
     const userId = req.user?.id; // Get the logged-in user's ID
+    console.log(userId);
     if (!userId) {
       return next(createError(401, "User not authenticated")); // Ensure the user is authenticated
     }
