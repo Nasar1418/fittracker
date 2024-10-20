@@ -183,15 +183,17 @@ export const getUserDashboard = async (req, res, next) => {
     next(err);
   }
 };
-
 export const getWorkoutsByDate = async (req, res, next) => {
   try {
-    const userId = req.user?.id;
-    const user = await User.findById(userId);
-    let date = req.query.date ? new Date(req.query.date) : new Date();
-    if (!user) {
-      return next(createError(404, "User not found"));
+    const userId = req.user?.id; // Get the logged-in user's ID
+    if (!userId) {
+      return next(createError(401, "User not authenticated")); // Ensure the user is authenticated
     }
+
+    // Get the date from the query parameter, or use the current date
+    let date = req.query.date ? new Date(req.query.date) : new Date();
+
+    // Define the start and end of the day based on the provided or current date
     const startOfDay = new Date(
       date.getFullYear(),
       date.getMonth(),
@@ -203,18 +205,22 @@ export const getWorkoutsByDate = async (req, res, next) => {
       date.getDate() + 1
     );
 
+    // Find workouts for the logged-in user on the specified date
     const todaysWorkouts = await Workout.find({
-      userId: userId,
+      user: userId, // Filter workouts by the logged-in user's ID
       date: { $gte: startOfDay, $lt: endOfDay },
     });
+
+    // Calculate the total calories burnt from the retrieved workouts
     const totalCaloriesBurnt = todaysWorkouts.reduce(
       (total, workout) => total + workout.caloriesBurned,
       0
     );
 
+    // Return the workouts and the total calories burnt in the response
     return res.status(200).json({ todaysWorkouts, totalCaloriesBurnt });
   } catch (err) {
-    next(err);
+    next(err); // Handle any errors that occur
   }
 };
 
