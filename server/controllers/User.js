@@ -10,9 +10,11 @@ dotenv.config();
 export const UserRegister = async (req, res, next) => {
   try {
     const { email, password, name, img } = req.body;
+
+    // Check if the email is in use
     const existingUser = await User.findOne({ email }).exec();
     if (existingUser) {
-      return next(createError(409, "Email is alredy in use"));
+      return next(createError(409, "Email is already in use."));
     }
 
     const salt = bcrypt.genSaltSync(10);
@@ -28,20 +30,22 @@ export const UserRegister = async (req, res, next) => {
     const token = jwt.sign({ id: createdUser._id }, process.env.JWT, {
       expiresIn: "9999 years",
     });
-    return res.status(200).json({ token, User });
-  } catch (err) {
-    next(err);
+    return res.status(200).json({ token, user });
+  } catch (error) {
+    return next(error);
   }
 };
 
 export const UserLogin = async (req, res, next) => {
   try {
     const { email, password } = req.body;
-    const user = await User.findOne({ email });
 
+    const user = await User.findOne({ email: email });
+    // Check if user exists
     if (!user) {
-      return next(createError(409, "User not found"));
+      return next(createError(404, "User not found"));
     }
+    console.log(user);
     // Check if password is correct
     const isPasswordCorrect = await bcrypt.compareSync(password, user.password);
     if (!isPasswordCorrect) {
@@ -51,9 +55,10 @@ export const UserLogin = async (req, res, next) => {
     const token = jwt.sign({ id: user._id }, process.env.JWT, {
       expiresIn: "9999 years",
     });
+
     return res.status(200).json({ token, user });
-  } catch (err) {
-    next(err);
+  } catch (error) {
+    return next(error);
   }
 };
 
@@ -61,13 +66,11 @@ export const getUserDashboard = async (req, res, next) => {
   try {
     const userId = req.user?.id;
     const user = await User.findById(userId);
-
     if (!user) {
       return next(createError(404, "User not found"));
     }
 
     const currentDateFormatted = new Date();
-
     const startToday = new Date(
       currentDateFormatted.getFullYear(),
       currentDateFormatted.getMonth(),
@@ -79,6 +82,7 @@ export const getUserDashboard = async (req, res, next) => {
       currentDateFormatted.getDate() + 1
     );
 
+    //calculte total calories burnt
     const totalCaloriesBurnt = await Workout.aggregate([
       { $match: { user: user._id, date: { $gte: startToday, $lt: endToday } } },
       {
@@ -89,13 +93,10 @@ export const getUserDashboard = async (req, res, next) => {
       },
     ]);
 
-    //calculate total no of workouts
+    //Calculate total no of workouts
     const totalWorkouts = await Workout.countDocuments({
-      user: user._id,
-      date: {
-        $gte: startToday,
-        $lt: endToday,
-      },
+      user: userId,
+      date: { $gte: startToday, $lt: endToday },
     });
 
     //Calculate average calories burnt per workout
@@ -104,7 +105,7 @@ export const getUserDashboard = async (req, res, next) => {
         ? totalCaloriesBurnt[0].totalCaloriesBurnt / totalWorkouts
         : 0;
 
-    //Fetch category of workouts
+    // Fetch category of workouts
     const categoryCalories = await Workout.aggregate([
       { $match: { user: user._id, date: { $gte: startToday, $lt: endToday } } },
       {
@@ -116,6 +117,7 @@ export const getUserDashboard = async (req, res, next) => {
     ]);
 
     //Format category data for pie chart
+
     const pieChartData = categoryCalories.map((category, index) => ({
       id: index,
       value: category.totalCaloriesBurnt,
@@ -129,6 +131,7 @@ export const getUserDashboard = async (req, res, next) => {
         currentDateFormatted.getTime() - i * 24 * 60 * 60 * 1000
       );
       weeks.push(`${date.getDate()}th`);
+
       const startOfDay = new Date(
         date.getFullYear(),
         date.getMonth(),
@@ -154,13 +157,15 @@ export const getUserDashboard = async (req, res, next) => {
           },
         },
         {
-          $sort: { _id: 1 }, //sort by date in ascending order
+          $sort: { _id: 1 }, // Sort by date in ascending order
         },
       ]);
+
       caloriesBurnt.push(
         weekData[0]?.totalCaloriesBurnt ? weekData[0]?.totalCaloriesBurnt : 0
       );
     }
+
     return res.status(200).json({
       totalCaloriesBurnt:
         totalCaloriesBurnt.length > 0
